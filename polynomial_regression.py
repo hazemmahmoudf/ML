@@ -1,62 +1,72 @@
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import PolynomialFeatures
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
-from sklearn.linear_model import Ridge  # Better than LinearRegression with Polynomial
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score, mean_absolute_error, mean_absolute_percentage_error
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Load the data
-df = pd.read_csv(r"cleaned_smart_home_data.csv", nrows=100000)
+# ===== Load Cleaned Data =====
+df = pd.read_csv("cleaned_smart_home_data.csv")
 
-# Columns
-cat_cols = ['Appliance Type', 'Season']
-num_cols = ['Outdoor Temperature (°C)', 'Household Size']  # Must match exactly the names in the data
+# ===== Features & Target =====
+# هنعمل Predict للـ Global_active_power
+features = ['Global_reactive_power', 'Voltage', 'Global_intensity', 
+            'Sub_metering_1', 'Sub_metering_2', 'Sub_metering_3']
+target = 'Global_active_power'
 
-# Features and target
-X = df[cat_cols + num_cols]  # Fixed: correct concatenation
-y = df['Energy Consumption (kWh)']
+X = df[features]
+y = df[target]
 
-# Train/test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# ===== Train/Test Split 70/30 =====
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
-# Preprocessor + Polynomial + Ridge in one pipeline
-poly_model = Pipeline([
-    ('preprocessor', ColumnTransformer([
-        ('num', 'passthrough', num_cols),  # Fixed: 'passthrough' not 'pass'
-        ('cat', OneHotEncoder(drop='first', handle_unknown='ignore'), cat_cols)  # Fixed: cat_cols
-    ])),
-    ('poly', PolynomialFeatures(degree=2, include_bias=False)),  # Degree 2 to avoid RAM issues
-    ('ridge', Ridge(alpha=1.0))  # Ridge to prevent severe overfitting
-])
-
-# Train
-poly_model.fit(X_train, y_train)  # Fixed: y_train not y
+# ===== Linear Regression =====
+linear_model = LinearRegression()
+linear_model.fit(X_train, y_train)
 
 # Predict
-y_pred = poly_model.predict(X_test)
+y_pred = linear_model.predict(X_test)
 
-# All metrics as requested
-print("\n" + "=" * 60)
-print("Final Results for Polynomial Regression (Degree 2 + Ridge)")
-print("=" * 60)
-print(f"R² Score                  : {r2_score(y_test, y_pred):.4f}")
-print(f"MAE (Mean Absolute Error) : {mean_absolute_error(y_test, y_pred):.3f} kWh")
-print(f"RMSE                      : {np.sqrt(mean_squared_error(y_test, y_pred)):.3f} kWh")
-print(f"MAPE (Percentage Error)   : {mean_absolute_percentage_error(y_test, y_pred) * 100:.2f} %")
-print(f"Average Real Consumption  : {y.mean():.3f} kWh")
-print("=" * 60)
+# ===== Evaluation =====
+print("\n===== Linear Regression =====")
+print(f"R² Score  : {r2_score(y_test, y_pred):.4f}")
+print(f"MAE       : {mean_absolute_error(y_test, y_pred):.3f} kW")
+print(f"MAPE      : {mean_absolute_percentage_error(y_test, y_pred)*100:.2f} %")
 
-# بيانات جديدة
-new_data = pd.DataFrame({
-    'Appliance Type': ['Oven'],    # categorical
-    'Season': ['Summer'],           # categorical
-    'Outdoor Temperature (°C)': [30],
-    'Household Size': [5]
+# Example: Predict on a new sample
+new_sample = pd.DataFrame({
+    'Global_reactive_power': [0.1],
+    'Voltage': [241.8],
+    'Global_intensity': [10.5],
+    'Sub_metering_1': [0],
+    'Sub_metering_2': [1],
+    'Sub_metering_3': [0]
 })
 
-# Predict مباشرة
-predicted_energy = poly_model.predict(new_data)
-print(f"Predicted Energy Consumption: {predicted_energy[0]:.3f} kWh")
+predicted = linear_model.predict(new_sample)
+print(f"Predicted Global Active Power (kW): {predicted[0]:.3f}")
+
+# ===== Visualization =====
+
+# 1. Scatter plot: Actual vs Predicted
+plt.figure(figsize=(8,6))
+plt.scatter(y_test, y_pred, alpha=0.3)
+plt.xlabel("Actual Global Active Power (kW)")
+plt.ylabel("Predicted Global Active Power (kW)")
+plt.title("Actual vs Predicted Global Active Power")
+plt.show()
+
+# 2. Histogram of Global Active Power
+plt.figure(figsize=(8,5))
+sns.histplot(df['Global_active_power'], bins=50, kde=True)
+plt.title("Distribution of Global Active Power")
+plt.xlabel("Global Active Power (kW)")
+plt.ylabel("Frequency")
+plt.show()
+
+# 3. Boxplot for Sub_metering_1 as example
+plt.figure(figsize=(8,5))
+sns.boxplot(y='Sub_metering_1', data=df)
+plt.title("Boxplot of Sub_metering_1")
+plt.show()

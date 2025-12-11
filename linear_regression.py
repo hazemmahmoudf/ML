@@ -1,24 +1,28 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
+from sklearn.metrics import r2_score, mean_absolute_error, mean_absolute_percentage_error
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Load first 1000 rows
-df = pd.read_csv(r"cleaned_smart_home_data.csv", nrows=100000)
+# ===== Load Data =====
+df = pd.read_csv(r"cleaned_household_power_data.csv", nrows=100000)
 
-# One-hot encode categorical features
-df_encoded = pd.get_dummies(df, columns=['Appliance Type', 'Season'], drop_first=True)
+# Target: Predict Global_active_power
+target_col = 'Global_active_power'
 
-# Features + Target
-X = df_encoded.drop(['Energy Consumption (kWh)', 'Date', 'Time'], axis=1)
-y = df_encoded['Energy Consumption (kWh)']
+# Features: استخدام باقي الأعمدة الرقمية
+feature_cols = ['Global_reactive_power', 'Voltage', 'Global_intensity',
+                'Sub_metering_1', 'Sub_metering_2', 'Sub_metering_3']
 
-# Train/Test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X = df[feature_cols]
+y = df[target_col]
 
-# Linear Regression
+# ===== Train/Test Split 70/30 =====
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+# ===== Linear Regression =====
 linear_model = LinearRegression()
 linear_model.fit(X_train, y_train)
 
@@ -26,31 +30,36 @@ linear_model.fit(X_train, y_train)
 y_pred = linear_model.predict(X_test)
 
 # Evaluate
-print("===== Linear Regression =====")
+print("\n===== Linear Regression =====")
 print(f"R² Score  : {r2_score(y_test, y_pred):.4f}")
-print(f"MAE       : {mean_absolute_error(y_test, y_pred):.3f} kWh")
-print(f"RMSE      : {np.sqrt(mean_squared_error(y_test, y_pred)):.3f} kWh")
+print(f"MAE       : {mean_absolute_error(y_test, y_pred):.3f} kW")
 print(f"MAPE      : {mean_absolute_percentage_error(y_test, y_pred)*100:.2f} %")
 
 # Example: Predict on new data
-model_columns = X_train.columns
-
 new_data = pd.DataFrame({
-    'Home ID': [101],
-    'Outdoor Temperature (°C)': [25],
-    'Household Size': [3],
-    'Appliance Type_Oven': [1],
-    'Season_Winter': [1]
+    'Global_reactive_power': [0.1],
+    'Voltage': [240],
+    'Global_intensity': [10],
+    'Sub_metering_1': [0],
+    'Sub_metering_2': [1],
+    'Sub_metering_3': [2]
 })
 
-# Add missing columns
-for col in model_columns:
-    if col not in new_data.columns:
-        new_data[col] = 0
-
-# Reorder columns like training set
-new_data = new_data[model_columns]
-
-# Predict
+# Predict new energy consumption
 predicted_energy = linear_model.predict(new_data)
-print(f"Predicted Energy Consumption (kWh): {predicted_energy[0]:.3f}")
+print(f"Predicted Global Active Power (kW): {predicted_energy[0]:.3f}")
+
+# ===== Visualization =====
+# Scatter: Actual vs Predicted
+plt.figure(figsize=(8,5))
+plt.scatter(y_test, y_pred, alpha=0.3)
+plt.xlabel("Actual Global Active Power (kW)")
+plt.ylabel("Predicted Global Active Power (kW)")
+plt.title("Actual vs Predicted Global Active Power")
+plt.show()
+
+# Boxplots for Sub_meterings
+plt.figure(figsize=(12,6))
+sns.boxplot(data=df[['Sub_metering_1', 'Sub_metering_2', 'Sub_metering_3']])
+plt.title('Distribution of Sub Metering')
+plt.show()
